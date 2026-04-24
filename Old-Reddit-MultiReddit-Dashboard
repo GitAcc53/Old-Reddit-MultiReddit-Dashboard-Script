@@ -1,0 +1,375 @@
+// ==UserScript==
+// @name         Old Reddit , MultiReddit Dashboard
+// @namespace    http://tampermonkey.net/
+// @version      24.01.5
+// @description  NSFW color/border fix, v.redd.it scaling, and Crosspost native styling.
+// @author       Gemini
+// @match        *://old.reddit.com/user/*/m/*
+// @match        *://www.reddit.com/user/*/m/*
+// @grant        none
+// ==/UserScript==
+
+(async function() {
+    'use strict';
+
+    const match = window.location.pathname.match(/\/user\/([^\/]+)\/m\/([^\/]+)/);
+    if (!match) return;
+
+    const style = document.createElement('style');
+    style.innerHTML = `
+        #siteTable { display: none !important; }
+        .content { margin-top: 0 !important; }
+        #custom-dashboard-container { margin-top: 10px; font-family: verdana, arial, helvetica, sans-serif; }
+
+        /* Settings Bar */
+        #db-settings-bar { padding: 0 10px; font-size: 11px; margin-bottom: 15px; color: #888; font-family: verdana, arial, sans-serif; }
+        #db-settings-bar input { width: 40px; border: 1px solid #ccc; text-align: center; background: transparent; color:#888; }
+        #db-settings-bar button { cursor: pointer; background: transparent; border: 1px solid #ccc; padding: 2px 5px; font-size: 10px; color:#888; }
+
+        /* Sub Headers */
+        .sub-block-wrapper { margin-bottom: 25px; border-top: 1px solid #eee; padding-top: 10px; }
+        body.res-nightmode .sub-block-wrapper { border-top-color: #333; }
+        .dashboard-header { font-size: large; margin-bottom: 5px; font-weight: normal; font-family: verdana, arial, sans-serif; }
+        .dashboard-header a { color: #369; text-decoration: none; }
+
+        /* YOUTUBE ICON FIX */
+        .thumbnail.custom-yt-thumb {
+            background: transparent !important;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            border: none !important;
+            height: 50px !important;
+            width: 70px !important;
+        }
+        .thumbnail.custom-yt-thumb img.yt-logo-img {
+            width: 45px !important;
+            height: auto !important;
+            border: none !important;
+            background: transparent !important;
+            transform: translateY(-2px);
+        }
+
+        /* THUMBNAIL FIX */
+        .thumbnail { margin-right: 10px !important; flex-shrink: 0; }
+        .thumbnail img:not(.yt-logo-img) { max-width: 70px; max-height: 70px; width: auto; height: auto; object-fit: contain; }
+
+        /* FLAIR TEXT SIZE FIX */
+        .linkflairlabel {
+            max-width: none !important;
+            font-size: 11px !important;
+            padding: 1px 4px !important;
+            border-radius: 2px;
+        }
+
+        /* NATIVE NSFW FIX - Çizgi inceldi, Yazı inceldi, Renk uyumlu */
+        acronym.adult {
+            color: #d10023 !important;
+            border: 1px solid #d10023 !important;
+            padding: 0 3px !important;
+            border-radius: 3px !important;
+            text-decoration: none !important;
+            font-size: 10px !important;
+            font-weight: normal !important;
+            margin-right: 5px;
+            display: inline-block;
+            line-height: 12px;
+        }
+
+        /* EXPANDO BUTTONS (P ve A) */
+        .expando-button.custom-pic-exp {
+            display: inline-block !important;
+            width: 23px !important;
+            height: 23px !important;
+            background-color: #f6f7f8 !important;
+            border: 1px solid #c6c6c6 !important;
+            border-radius: 2px;
+            text-align: center;
+            line-height: 21px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #369;
+            cursor: pointer;
+            box-sizing: border-box;
+            font-family: verdana, sans-serif;
+            margin: 0 5px 0 0;
+            vertical-align: middle;
+            position: relative;
+        }
+        body.res-nightmode .expando-button.custom-pic-exp { background-color: #333 !important; border-color: #555 !important; color: #ccc !important; }
+        .expando-button.custom-pic-exp:hover { background-color: #e2e2e2 !important; }
+        .expando-button.custom-pic-exp.collapsed.image::after { content: "P"; position:absolute; top:0; left:0; right:0; bottom:0; }
+        .expando-button.custom-pic-exp.collapsed.gallery::after { content: "A"; position:absolute; top:0; left:0; right:0; bottom:0; }
+        .expando-button.custom-pic-exp.expanded::after { content: "-"; color: #ff4500; position:absolute; top:0; left:0; right:0; bottom:0; }
+
+        /* GALLERY / ALBUM */
+        .gallery-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 5px;
+            max-width: 860px;
+            align-items: flex-start;
+        }
+        .gallery-item { display: flex; flex-direction: column; margin: 0; padding: 0; border: none !important; background: transparent !important; }
+        .gallery-item img { max-width: 108px !important; width: auto !important; height: auto !important; object-fit: contain; display: block; border: none !important; }
+        .gallery-caption { font-size: 10px; color: #888; margin-top: 4px; line-height: 1.3; font-family: verdana, arial, sans-serif; word-wrap: break-word; max-width: 108px; }
+
+        /* --- Crosspost UI Box Native Fix --- */
+        .custom-crosspost-box {
+            border: 1px solid #c6c6c6;
+            margin-top: 5px;
+            background-color: transparent;
+            border-radius: 3px;
+            max-width: 800px;
+            overflow: hidden;
+        }
+        body.res-nightmode .custom-crosspost-box { border-color: #444; }
+
+        .cp-top-matter { padding: 5px 10px; }
+        .cp-top-matter .title a { color: #eee !important; font-size: 16px !important; text-decoration: none; }
+        .cp-top-matter .tagline a { color: #369 !important; text-decoration: none; }
+
+        .cp-media-container { line-height: 0; }
+        .cp-media-container img, .cp-media-container iframe { width: 100%; display: block; margin: 0; }
+
+        /* Expando Content & Text Padding - Boyutlar %92'ye düşürüldü ve kısıtlandı */
+        .custom-expando-content { display: none; margin-top: 5px; clear: both; }
+        .custom-expando-content.media-content { line-height: 0; }
+        .custom-expando-content img { max-width: 92%; max-height: 700px; object-fit: contain; width: auto; height: auto; display: block; margin: 0; border-radius: 2px; }
+
+        .custom-expando-content.text-content {
+            padding: 5px 10px; border: 1px solid #369; border-radius: 7px;
+            background-color: transparent; font-size: 12px; max-width: 60em;
+        }
+
+        .gallery-selftext {
+            margin-top: 5px !important;
+            padding: 5px 10px; border: 1px solid #369; border-radius: 7px;
+            background-color: transparent; font-size: 12px; max-width: 60em;
+        }
+    `;
+    document.head.appendChild(style);
+
+    function timeSince(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        let interval = seconds / 86400;
+        if (interval > 1) {
+            const days = Math.floor(interval);
+            return days + (days === 1 ? " day ago" : " days ago");
+        }
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " hours ago";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + " minutes ago";
+        return "just now";
+    }
+
+    function decodeHtml(html) {
+        if (!html) return '';
+        var txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value;
+    }
+
+    const siteTable = document.querySelector('#siteTable');
+    const container = document.createElement('div');
+    container.id = 'custom-dashboard-container';
+    siteTable.parentNode.insertBefore(container, siteTable);
+
+    let postLimit = localStorage.getItem('multiPostLimit') || 5;
+    const settingsDiv = document.createElement('div');
+    settingsDiv.id = 'db-settings-bar';
+    settingsDiv.innerHTML = `DASHBOARD SETTINGS: Posts per sub: <input type="number" id="limitInp" value="${postLimit}"> <button id="applyBtn">Apply & Refresh</button>`;
+    container.appendChild(settingsDiv);
+
+    document.getElementById('applyBtn').onclick = () => {
+        localStorage.setItem('multiPostLimit', document.getElementById('limitInp').value);
+        location.reload();
+    };
+
+    const multiUser = match[1];
+    const multiName = match[2].split('/')[0];
+    const res = await fetch(`/api/multi/user/${multiUser}/m/${multiName}?raw_json=1`);
+    const data = await res.json();
+    const subs = data.data.subreddits.map(s => s.name).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    for (const sub of subs) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'sub-block-wrapper';
+        wrapper.innerHTML = `<div class="dashboard-header"><a href="/r/${sub}">r/${sub}</a></div><div class="sitetable"></div><button class="next-btn" style="display:none; cursor:pointer; background:none; border:none; color:#888; font-size:10px; text-decoration:underline; font-weight:bold; margin-left:45px;">more from r/${sub}</button>`;
+        container.appendChild(wrapper);
+        fetchSubPosts(sub, wrapper.querySelector('.sitetable'), wrapper.querySelector('.next-btn'), null, 0);
+    }
+
+    async function fetchSubPosts(sub, target, btn, after, currentCount) {
+        let sort = window.location.pathname.includes('/top') ? 'top' : (window.location.pathname.includes('/new') ? 'new' : 'hot');
+        let apiUrl = `/r/${sub}/${sort}.json?limit=${postLimit}${after ? `&after=${after}` : ''}&raw_json=1`;
+        try {
+            const res = await fetch(apiUrl);
+            const json = await res.json();
+            const filteredPosts = json.data.children.filter(p => !p.data.stickied).slice(0, postLimit);
+
+            filteredPosts.forEach((post, index) => {
+                const p = post.data;
+                const postDiv = document.createElement('div');
+                postDiv.className = `thing link ${p.over_18 ? 'over18' : ''}`;
+
+                let thumbHtml = '';
+                if (p.domain.includes('youtube.com') || p.domain.includes('youtu.be')) {
+                    thumbHtml = `<a class="thumbnail custom-yt-thumb" href="${p.url}"><img class="yt-logo-img" src="https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg"></a>`;
+                } else if (p.thumbnail && !['self', 'default', 'nsfw', 'spoiler', 'image'].includes(p.thumbnail)) {
+                    thumbHtml = `<a class="thumbnail" href="${p.url}"><img src="${p.thumbnail}"></a>`;
+                } else {
+                    thumbHtml = `<a class="thumbnail ${p.thumbnail || 'default'}" href="${p.url}"></a>`;
+                }
+
+                let flairHtml = '';
+                if (p.link_flair_text) {
+                    const cssClass = p.link_flair_css_class ? p.link_flair_css_class : '';
+                    let inlineStyle = '';
+                    if (p.link_flair_background_color) inlineStyle += `background-color: ${p.link_flair_background_color}; border-color: ${p.link_flair_background_color}; `;
+                    if (p.link_flair_text_color === 'light') inlineStyle += `color: #ffffff; `;
+                    else if (p.link_flair_text_color === 'dark') inlineStyle += `color: #000000; `;
+                    flairHtml = `<span class="linkflairlabel ${cssClass}" title="${p.link_flair_text}" style="${inlineStyle}">${p.link_flair_text}</span>`;
+                }
+
+                let nsfwLabel = p.over_18 ? `<acronym class="adult" title="Adult content: Not Safe For Work">NSFW</acronym>` : '';
+
+                let expandoBtn = '';
+                let mediaContent = '';
+                let contentType = '';
+
+                // Crosspost Fix (Post yazısı fotoğrafın altına alındı, bullet noktaları eklendi)
+                if (p.crosspost_parent_list && p.crosspost_parent_list.length > 0) {
+                    expandoBtn = `<div class="expando-button collapsed crosspost"></div>`;
+                    const cp = p.crosspost_parent_list[0];
+                    let cpMedia = '';
+                    if (cp.is_video && ((cp.secure_media && cp.secure_media.reddit_video) || (cp.media && cp.media.reddit_video))) {
+                        const cpRv = (cp.secure_media && cp.secure_media.reddit_video) || (cp.media && cp.media.reddit_video);
+                        cpMedia = `<div class="cp-media-container"><iframe src="https://www.redditmedia.com/mediaembed/${cp.id}" frameborder="0" scrolling="no" style="width: 100%; height: ${cpRv.height || 400}px; border: none;" allowfullscreen></iframe></div>`;
+                    } else if (cp.post_hint === 'image' || (cp.url && cp.url.match(/\.(jpg|jpeg|png|gif)$/i))) {
+                        cpMedia = `<div class="cp-media-container"><img src="${cp.url.replace(/&amp;/g, '&')}"></div>`;
+                    }
+
+                    mediaContent = `
+                    <div class="custom-crosspost-box">
+                        <div class="cp-top-matter">
+                            <p class="title" style="margin-bottom: 2px;">
+                                <a href="${cp.permalink}" class="may-blank">${cp.title}</a>
+                            </p>
+                            <p class="tagline" style="font-size: x-small; color: #888; margin-bottom: 3px;">
+                                ${cp.score} points &bull; ${cp.num_comments} comments &bull; submitted <time>${timeSince(cp.created_utc * 1000)}</time> by <a href="/user/${cp.author}">${cp.author}</a> to <a href="/r/${cp.subreddit}">r/${cp.subreddit}</a>
+                            </p>
+                        </div>
+                        ${cpMedia}
+                        ${cp.selftext_html ? `<div class="md" style="font-size: 12px; margin-top: 5px; padding: 5px 10px;">${decodeHtml(cp.selftext_html)}</div>` : ''}
+                    </div>`;
+                    contentType = 'crosspost-content';
+                }
+                // Gallery
+                else if (p.is_gallery && p.media_metadata) {
+                    expandoBtn = `<div class="expando-button custom-pic-exp collapsed gallery"></div>`;
+                    let gItems = '';
+                    p.gallery_data.items.forEach(item => {
+                        const m = p.media_metadata[item.media_id];
+                        if (m) {
+                            let imgUrl = (m.p && m.p.length > 0) ? (m.p.find(res => res.x >= 200) || m.p[m.p.length - 1]).u : m.s.u;
+                            gItems += `<div class="gallery-item"><img src="${imgUrl.replace(/&amp;/g, '&')}" loading="lazy">${item.caption ? `<div class="gallery-caption">${item.caption}</div>` : ''}</div>`;
+                        }
+                    });
+                    mediaContent = `<div class="gallery-container">${gItems}</div>${p.selftext_html ? `<div class="gallery-selftext"><div class="md">${decodeHtml(p.selftext_html)}</div></div>` : ''}`;
+                    contentType = 'media-content';
+                }
+                // v.redd.it Fix (Orantılı küçültme ve Text eklentisi)
+                else if (p.is_video && ((p.secure_media && p.secure_media.reddit_video) || (p.media && p.media.reddit_video))) {
+                    expandoBtn = `<div class="expando-button collapsed video"></div>`;
+                    const rv = (p.secure_media && p.secure_media.reddit_video) || (p.media && p.media.reddit_video);
+
+                    let finalW = rv.width || 600;
+                    let finalH = rv.height || 450;
+
+                    // Çok uzun videoları orantılı olarak sınırla
+                    if (finalH > 500) {
+                        finalW = Math.round(finalW * (500 / finalH));
+                        finalH = 500;
+                    }
+
+                    let selfText = p.selftext_html ? `<div class="md" style="margin-top:10px; padding:5px; border:1px solid #369; border-radius:7px; font-size:12px; max-width:60em;">${decodeHtml(p.selftext_html)}</div>` : '';
+
+                    mediaContent = `<iframe src="https://www.redditmedia.com/mediaembed/${p.id}" frameborder="0" scrolling="no" style="width: ${finalW}px; max-width: 100%; height: ${finalH}px; border: none; display: block; margin:0;" allowfullscreen></iframe>${selfText}`;
+                    contentType = 'media-content';
+                }
+                // i.redd.it Fix (Text her zaman vardı, sadece CSS ile %92 sınırlandırıldı)
+                else if (p.post_hint === 'image' || p.url.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                    expandoBtn = `<div class="expando-button custom-pic-exp collapsed image"></div>`;
+                    let selfText = p.selftext_html ? `<div class="md" style="margin-top:10px; padding:5px; border:1px solid #369; border-radius:7px; font-size:12px; max-width:60em;">${decodeHtml(p.selftext_html)}</div>` : '';
+                    mediaContent = `<img src="${p.url.replace(/&amp;/g, '&')}">${selfText}`;
+                    contentType = 'media-content';
+                }
+                else if (p.is_self && p.selftext_html) {
+                    expandoBtn = `<div class="expando-button collapsed selftext"></div>`;
+                    mediaContent = `<div class="md">${decodeHtml(p.selftext_html)}</div>`;
+                    contentType = 'text-content';
+                }
+                else if (p.secure_media || p.media || p.url.includes('redgifs.com')) {
+                    expandoBtn = `<div class="expando-button collapsed video"></div>`;
+                    if (p.url.includes('redgifs.com')) {
+                        const rgId = p.url.split('/').pop().split('?')[0];
+                        mediaContent = `<iframe src="https://www.redgifs.com/ifr/${rgId}" style="width:100%; max-width:600px; height:400px; border:none;" frameborder="0" allowfullscreen></iframe>`;
+                    } else if (p.secure_media && p.secure_media.oembed) {
+                        mediaContent = decodeHtml(p.secure_media.oembed.html);
+                    }
+                    contentType = 'media-content';
+                }
+
+                postDiv.innerHTML = `
+                    <span class="rank" style="width:2.2ex;">${currentCount + index + 1}</span>
+                    <div class="midcol unvoted">
+                        <div class="arrow up"></div><div class="score unvoted">${p.score}</div><div class="arrow down"></div>
+                    </div>
+                    ${thumbHtml}
+                    <div class="entry unvoted">
+                        <div class="top-matter">
+                            <p class="title">
+                                <a class="title may-blank" href="${p.url}">${p.title}</a>
+                                ${flairHtml}
+                                <span class="domain">(<a href="/domain/${p.domain}/">${p.domain}</a>)</span>
+                            </p>
+                            ${expandoBtn}
+                            <p class="tagline">
+                                submitted <time>${timeSince(p.created_utc * 1000)}</time> by <a href="/user/${p.author}" class="author">${p.author}</a> to <a href="/r/${p.subreddit}/" class="subreddit">r/${p.subreddit}</a>
+                            </p>
+                            <ul class="flat-list buttons">
+                                <li class="first">${nsfwLabel}<a href="${p.permalink}" class="bylink comments">${p.num_comments} comments</a></li>
+                                <li class="share"><a href="javascript:void(0);">share</a></li>
+                                <li class="link-save-button save-button"><a href="#">save</a></li>
+                                <li class="hide-button"><a href="javascript:void(0)">hide</a></li>
+                                <li class="report-button"><a href="javascript:void(0)">report</a></li>
+                                <li class="crosspost-button"><a href="javascript:void(0)">crosspost</a></li>
+                            </ul>
+                        </div>
+                        <div class="custom-expando-content ${contentType}"></div>
+                    </div>
+                    <div class="clearleft"></div>
+                `;
+
+                const btnX = postDiv.querySelector('.expando-button');
+                if (btnX) {
+                    btnX.onclick = () => {
+                        const content = postDiv.querySelector('.custom-expando-content');
+                        const isCol = btnX.classList.contains('collapsed');
+                        btnX.classList.toggle('collapsed', !isCol);
+                        btnX.classList.toggle('expanded', isCol);
+                        content.style.display = isCol ? 'block' : 'none';
+                        if (isCol && content.innerHTML === "") content.innerHTML = mediaContent;
+                    };
+                }
+                target.appendChild(postDiv);
+            });
+
+            if (json.data.after) {
+                btn.style.display = 'inline-block';
+                btn.onclick = () => fetchSubPosts(sub, target, btn, json.data.after, currentCount + filteredPosts.length);
+            }
+        } catch(e) {}
+    }
+})();
